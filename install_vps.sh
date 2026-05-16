@@ -336,6 +336,9 @@ show_menu() {
   echo "   7) Проверить связь с роутером"
   echo "   8) Показать токен для роутера"
   echo ""
+  echo -e "  ${BOLD}Удаление:${NC}"
+  echo "   9) Полностью удалить бота с VPS"
+  echo ""
   echo "   0) Выход"
   echo ""
   read -rp "  Выбор: " CH
@@ -417,6 +420,39 @@ handle() {
       echo -e "  Команда для роутера (выполнить в SSH-консоли роутера):"
       echo -e "  ${BOLD}curl -sL https://raw.githubusercontent.com/Melodis-studio/AWG_Manager_TG_bot/main/install_router.sh | sh${NC}"
       echo ""; pause; show_menu ;;
+    9)
+      clear; hr
+      echo -e "${BOLD}   Удаление бота с VPS${NC}"; hr
+      echo ""
+      echo -e "  ${RED}Это удалит бота, все настройки и туннельный сервер.${NC}"
+      echo -e "  Данные на роутере не затрагиваются."
+      echo ""
+      read -rp "  Ты уверен? Введи YES для подтверждения: " CONFIRM
+      if [[ "$CONFIRM" == "YES" ]]; then
+        echo ""
+        echo -e "  Останавливаю сервисы..."
+        systemctl stop awg-bot frps 2>/dev/null || true
+        systemctl disable awg-bot frps 2>/dev/null || true
+        rm -f /etc/systemd/system/awg-bot.service
+        rm -f /etc/systemd/system/frps.service
+        systemctl daemon-reload
+        echo -e "  Удаляю файлы..."
+        rm -rf /opt/awg_bot
+        rm -rf /opt/frp
+        rm -f /usr/local/bin/awgbot
+        userdel awgbot 2>/dev/null || true
+        echo ""
+        echo -e "  ${GREEN}✓ Бот полностью удалён с VPS.${NC}"
+        echo ""
+        echo -e "  Не забудь удалить туннель на роутере:"
+        echo -e "  ${BOLD}ssh root@192.168.1.1 -p 222${NC}"
+        echo -e "  Затем: ${BOLD}/opt/etc/init.d/S99frpc stop && rm -rf /opt/etc/frp /opt/etc/init.d/S99frpc${NC}"
+        echo ""
+        exit 0
+      else
+        echo -e "  ${YELLOW}Отменено.${NC}"
+        sleep 1; show_menu
+      fi ;;
     0|"")
       echo "  Выход."; exit 0 ;;
     *)
@@ -431,9 +467,10 @@ case "${1:-}" in
   logs)    journalctl -u "$SERVICE" -f --no-pager ;;
   status)  systemctl status  "$SERVICE" --no-pager ;;
   update)  bash <(curl -sL "$REPO/install_vps.sh") ;;
-  tunnel)  curl -s http://localhost:52819/api/health ;;
-  token)   cat /opt/frp/.token ;;
-  *)       show_menu ;;
+  tunnel)    curl -s http://localhost:52819/api/health ;;
+  token)     cat /opt/frp/.token ;;
+  uninstall) handle 9 ;;
+  *)         show_menu ;;
 esac
 CMDEOF
 chmod +x "$CMD"
